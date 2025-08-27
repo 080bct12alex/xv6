@@ -1,0 +1,244 @@
+# -------------------------------
+# QEMU targets for GUI and terminal      at last of kernel/Makefile
+# -------------------------------
+
+# Terminal-only mode (default, uses -nographic)
+qemu-terminal: check-qemu-version $K/kernel fs.img
+        $(QEMU) $(QEMUOPTS)
+
+# GUI mode (opens a window via WSLg)
+qemu-gui: check-qemu-version $K/kernel fs.img
+        $(QEMU) $(filter-out -nographic,$(QEMUOPTS)) 
+
+
+
+OF kernel/Makefile 
+
+UPROGS=\
+        $U/_fib\
+        $U/_sum\
+        $U/_fact
+
+OF  kernel/proc.h 
+// Per-process state
+struct proc {
+  uint64 ctime;        // Creation time (ticks when process created)
+  uint64 ttime;        // Total time (ticks process has run)
+  uint64 waiting_time; // Total waiting time
+  uint64 slice_ticks;  // ticks used in current time slice
+
+  // for HRRN scheduling
+  uint64 rtime;     // total time process has run (ticks)
+  uint64 wtime;     // total waiting time in RUNNABLE state
+  uint64 enter_time; // time process last became RUNNABLE
+  uint64 burst;    // estimated CPU burst for HRRN
+};
+
+// Declare global arrays (defined in proc.c)
+extern struct proc proc[NPROC];
+extern struct cpu cpus[NCPU];
+
+
+
+// user/sum.c
+
+#include "kernel/types.h"
+#include "user/user.h"
+
+int main() {
+    //int pid = getpid();
+    int sum = 0;
+
+    // Compute sum with CPU-consuming busy loop
+    for(int i = 1; i <= 300; i++){
+        sum += i;
+           for(int j=0;j<9500000;j++);
+    }
+
+    // Print the result
+   //printf("PID %d: Sum of 1 to 300 is %d\n", pid, sum);
+
+    // Small delay to avoid interleaving with scheduler table
+       //sleep(40); // adjust as needed
+
+    exit(0);
+}
+
+
+// user/fib.c
+#include "kernel/types.h"
+#include "user/user.h"
+
+int main() {
+//    int pid = getpid();
+    int n = 25, a = 0, b = 1, c, i;
+
+    //printf("PID %d: Fibonacci series: %d %d ", pid, a, b);
+    for(i = 2; i < n; i++){
+        c = a + b;
+       // printf("%d ", c);
+        a = b;
+        b = c;
+        for(int j=0;j<10000000;j++); // busy loop to consume CPU
+    }
+    //printf("PID %d:  %d th Fibonacci term  : %d  ", pid, n , c);
+    printf("\n");
+    exit(0);
+}
+
+
+
+
+
+// user/fact.c
+#include "kernel/types.h"
+#include "user/user.h"
+
+int factorial(int n){
+    // Busy loop to consume CPU per recursion
+    for(int j = 0; j < 10000000; j++);
+
+    if(n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+
+
+int main() {
+    int pid = getpid();
+    int n = 10;
+
+    printf("PID %d: Factorial of %d is %d\n", pid, n, factorial(n));
+    exit(0);
+}
+
+IN nano  kernel/trap.c 
+void
+clockintr()
+{
+    if(cpuid() == 0){
+        acquire(&tickslock);
+        ticks++;
+        wakeup(&ticks);
+        release(&tickslock);
+    }
+
+    // Per-process accounting
+    for(struct proc *p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->state == RUNNING)
+            p->rtime++;      // increment runtime for RUNNING processes
+        else if(p->state == RUNNABLE)
+            p->wtime++;      // increment waiting time for RUNNABLE processes
+        release(&p->lock);
+    }
+
+    // schedule next timer interrupt (about 0.1s)
+    w_stimecmp(r_time() + 1000000);
+}
+
+
+static struct proc*
+allocproc(void)
+{
+    struct proc *p;
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == UNUSED) {
+            goto found;
+        } else {
+            release(&p->lock);
+        }
+    }
+    return 0;
+
+found:
+    p->pid = allocpid();
+    p->state = USED;
+
+    // Initialize HRRN fields
+    p->rtime = 0;        // total running time
+    p->wtime = 0;        // waiting time
+    p->enter_time = 0;   // first time process becomes RUNNABLE
+
+    // **Initialize burst time**
+    p->burst = 5 + (p->pid % 10);  // each process has different burst
+
+    // Allocate a trapframe page
+    if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
+
+    // An empty user page table
+    p->pagetable = proc_pagetable(p);
+    if(p->pagetable == 0){
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
+
+    // Set up new context to start executing at forkret
+    memset(&p->context, 0, sizeof(p->context));
+    p->context.ra = (uint64)forkret;
+    p->context.sp = p->kstack + PGSIZE;
+
+    return p;
+}
+
+
+
+
+At proc.c last
+void
+procdump(void)
+{
+  static char *states[] = {
+  [UNUSED]    "unused",
+  [USED]      "used",
+  [SLEEPING]  "sleep ",
+  [RUNNABLE]  "runble",
+  [RUNNING]   "run   ",
+  [ZOMBIE]    "zombie"
+  };
+  struct proc *p;
+  char *state;
+
+  printf("\n");
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+    else
+      state = "???";
+    printf("%d %s %s", p->pid, state, p->name);
+    printf("\n");
+  }
+}       
+
+
+while installing xv6 
+to check gui 
+sudo apt install x11-apps -y
+xcalc
+
+sudo apt update && sudo apt upgrade
+sudo apt install -y build-essential git gdb-multiarch
+sudo apt install -y qemu-system-misc
+sudo apt install -y qemu-system-riscv64
+sudo apt autoremove -y
+sudo apt install -y gcc-riscv64-unknown-elf
+
+qemu-system-riscv64 --version
+riscv64-unknown-elf-gcc --version
+
+# In Ubuntu (WSL)
+cd ~
+git clone https://github.com/mit-pdos/xv6-riscv.git
+cd xv6-riscv
+make
+qemu-system-riscv64  -machine virt -kernel kernel
+make qemu
+ qemu-system-riscv64 -machine virt -kernel kernel/kernel -m 128M -smp 3

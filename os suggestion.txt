@@ -1,0 +1,87 @@
+os suggestion 
+1. MS-DOS (Disk Operating System)
+ Why good for a case stud
+Simple text-based interface.
+
+Direct control over file system, memory, and processes via commands.
+
+Easy to write small assembly or C programs to interact with system interrupts.
+
+Manipulatable functions:
+
+File handling (COPY, DEL, TYPE commands or INT 21H in assembly).
+
+Memory management (viewing free space, loading TSR programs).
+
+Device I/O via simple drivers.
+
+
+
+
+2. Linux (Lightweight distro like Lubuntu or Tiny Core Linux)
+Why good:
+
+
+Open source — can inspect kernel code if needed.
+
+Rich set of system calls for process, memory, and file management.
+
+Easy scripting in Bash for automation.
+
+Manipulatable functions:
+
+Process control (ps, kill, nice).
+
+File permissions and user management.
+
+Kernel parameters via /proc and /sys.
+
+3. Minix 3
+Why good:
+
+Designed for teaching OS concepts (used by Tanenbaum in Modern Operating Systems).
+
+Very small and modular microkernel.
+
+Can modify kernel modules and rebuild easily.
+
+Manipulatable functions:
+
+Process scheduling.
+
+Device driver loading/unloading.
+
+File system internals.
+
+4. xv6 (Educational Unix-like OS)
+Why good:
+
+Minimal Unix OS designed for MIT’s OS course.
+
+Written in C, small enough to read in days.
+
+Can run in QEMU or VirtualBox.
+
+Manipulatable functions:
+
+Add/modify system calls.
+
+Change scheduler.
+
+Modify file system behavior.
+
+5. Nachos or PintOS (Simulation-based OS projects)
+Why good:
+
+Runs in a controlled simulator — no risk to your real PC.
+
+Perfect for implementing or modifying OS components without hardware issues.
+
+Manipulatable functions:
+
+Thread scheduling.
+
+Virtual memory implementation.
+
+File system logic.
+

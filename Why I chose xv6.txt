@@ -1,0 +1,52 @@
+Why I choose xv6:
+
+1. Educational Focus & Simplicity
+
+xv6 is designed specifically for teaching OS concepts at MIT.
+
+It is small and readable, written in plain C, so the entire kernel can be understood in a few days.
+
+Unlike Linux or Minix, which are larger and more complex, xv6 allows students to focus on core OS principles without getting lost in thousands of lines of code.
+
+2. Unix-Like Environment
+
+Provides a real Unix-like environment with processes, file system, and system calls.
+
+Easier to experiment with system calls, scheduling, and file system behavior.
+Unlike DOS, it’s multitasking and supports multiple processes, which is essential for learning real OS concepts.
+
+3. Safe & Manipulatable
+
+Can be run in QEMU or VirtualBox, so i can experiment without risking my main system.
+
+Supports modifications at kernel level, like adding  changing scheduler behavior.
+
+Safer than modifying Linux directly or working with real hardware OS.
+
+
+4. Hands-On Learning
+
+Unlike Nachos or PintOS (simulator-based), xv6 runs on a real virtual machine, giving experience closer to actual OS behavior.
+
+I can see how processes, memory, and file systems actually work in a Unix-like OS.
+
+5. Balance Between Realism & Learnability
+
+Linux is real and full-featured but too complex for quick kernel experiments.
+
+Minix is modular and small, but its microkernel design is different from classic Unix.
+
+
+Thus
+xv6 hits the sweet spot: Unix-like, readable, modifiable, and designed for education.
+
+✅ Summary:
+I chose xv6 because it’s small, readable, Unix-like, safe to experiment with, and designed specifically for learning OS concepts. It gives real kernel-level experience without the complexity of Linux or the abstraction of simulators like Nachos/PintOS.
+
+It’s xv6:
+
+Only a few thousand lines of C code.
+
+Based on the original Unix V6 (so it’s simple but still teaches real OS principles).
+
+Runs in a simulator like QEMU, so you can experiment safely.

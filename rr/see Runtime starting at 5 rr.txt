@@ -1,0 +1,5 @@
+why  Runtime starting at 5 ?
+
+this is because ttime is already non-zero before scheduler() starts running.
+
+In XV6, ttime is incremented not only in your scheduler loop, but also sometimes during process setup or the first context switch. That’s why even your first call to print_proc_stats() sees ttime > 0.

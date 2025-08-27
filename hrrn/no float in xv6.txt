@@ -1,0 +1,1 @@
+Nice catch — your kerneltrap (scause=0x2) was caused by using floating-point (double) arithmetic inside the kernel. xv6 (and the RISC-V kernel config you’re using) doesn’t enable the FPU in supervisor mode, so any emitted floating-point instructions cause an illegal instruction trap at boot.

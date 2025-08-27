@@ -1,0 +1,24 @@
+1.  cd ~           (take to home of wsl/ubuntu)
+
+2. cd xv6-riscv
+
+3. make qemu
+
+4. make qemu CPUS=1
+
+sum &
+sum &
+
+sum &
+fib &
+
+sum &
+fact &
+fib &
+
+5. nano kernel/proc.c
+
+6.nano user/sum.c
+
+
+

@@ -1,0 +1,145 @@
+// ---------------- scheduler() ----------------
+void scheduler(void) {
+    struct proc *p, *best_proc;
+    struct cpu *c = mycpu();
+    c->proc = 0;
+
+    for(;;){
+        intr_on();  // enable interrupts
+
+        best_proc = 0;
+        uint64 best_num = 0;   // numerator of best RR
+        uint64 best_den = 1;   // denominator of best RR
+        uint64 picked_rr = 0;  // store RR of picked process
+
+        // Pick RUNNABLE process with highest response ratio
+        for(p = proc; p < &proc[NPROC]; p++){
+            acquire(&p->lock);
+            if(p->state == RUNNABLE){
+                uint64 wait_time = p->wtime;
+                uint64 burst_time = p->burst;
+
+                uint64 num = wait_time + burst_time;
+                uint64 den = burst_time;
+
+                if(best_proc == 0 || (num * best_den) > (best_num * den)) {
+                    if(best_proc && best_proc != p)
+                        release(&best_proc->lock);
+
+                    best_num = num;
+                    best_den = den;
+                    best_proc = p;  // keep lock held
+                } else {
+                    release(&p->lock);
+                }
+            } else {
+                release(&p->lock);
+            }
+        }
+
+        if(best_proc){
+            best_proc->state = RUNNING;
+            c->proc = best_proc;
+
+            // Compute RR for printing (scaled)
+            picked_rr = (best_num * 100 + best_den/2) / best_den;
+
+            // Run the chosen process
+            swtch(&c->context, &best_proc->context);
+
+            c->proc = 0;
+            release(&best_proc->lock);
+
+            // Print stats AFTER process runs using snapshot RR
+            print_proc_stats(best_proc->pid, picked_rr);
+        } else {
+            asm volatile("wfi");          // idle CPU
+            print_proc_stats(-1, 0);      // no process picked
+        }
+    }
+}
+
+// ---------------- print_proc_stats() ----------------
+void print_proc_stats(int picked_pid, uint64 picked_rr) {
+    if(has_user_proc() == 0)
+        return;
+
+    struct proc *p;
+    static int header_printed = 0;
+    static int tick_counter = 0;
+    tick_counter++;
+
+    int pid_max = 3, name_max = 12, burst_max = 6, wait_max = 8, rt_max = 8;
+    int first_row = 1;
+
+    if(!header_printed){
+        printf("\nTick  PID  Name         Burst  Waiting  Runtime   RR    Pick\n");
+        printf("-------------------------------------------------------------\n");
+        header_printed = 1;
+    }
+
+    for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->name[0] != 0 &&
+           strncmp(p->name, "init", 4) != 0 &&
+           strncmp(p->name, "sh", 2) != 0 &&
+           (p->state == RUNNABLE || p->state == RUNNING)) {
+
+            uint64 wait_time = p->wtime;
+            uint64 burst_time = p->burst;
+
+            // For the picked process, use snapshot RR
+            uint64 rr_scaled;
+            if(p->pid == picked_pid)
+                rr_scaled = picked_rr;
+            else
+                rr_scaled = ((wait_time + burst_time) * 100 + burst_time/2) / burst_time;
+
+            // Tick column
+            if(first_row){
+                printf("%d", tick_counter);
+                first_row = 0;
+            } else {
+                printf(" "); // blank for subsequent processes
+            }
+            printf("     ");
+
+            // PID
+            printf("%d", p->pid);
+            for(int s = 0; s < pid_max - num_digits(p->pid) + 2; s++)
+                printf(" ");
+
+            // Name
+            printf("%s", p->name);
+            for(int s = 0; s < name_max - strlen(p->name) + 2; s++)
+                printf(" ");
+
+            // Burst
+            printf("%lu", burst_time);
+            for(int s = 0; s < burst_max - num_digits(burst_time) + 2; s++)
+                printf(" ");
+
+            // Waiting
+            printf("%lu", wait_time);
+            for(int s = 0; s < wait_max - num_digits(wait_time) + 2; s++)
+                printf(" ");
+
+            // Runtime
+            printf("%lu", p->rtime);
+            for(int s = 0; s < rt_max - num_digits(p->rtime) + 2; s++)
+                printf(" ");
+
+            // RR
+            printf("%lu.", rr_scaled / 100);
+            if(rr_scaled % 100 < 10) printf("0");
+            printf("%lu", rr_scaled % 100);
+
+            // Pick column
+            if(p->pid == picked_pid)
+                printf(" <---");
+
+            printf("\n");
+        }
+        release(&p->lock);
+    }
+}

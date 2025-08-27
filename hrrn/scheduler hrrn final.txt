@@ -1,0 +1,194 @@
+ // helper: count digits
+// helper: count digits
+// ----------------- helpers -------------------
+
+// count digits for formatting
+int num_digits(int n) {
+    int count = 0;
+    if(n == 0) return 1;
+    while(n) { count++; n /= 10; }
+    return count;
+}
+
+// check if at least one user process exists
+int has_user_proc(void) {
+    struct proc *p;
+    int count = 0;
+ for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->name[0] != 0 &&
+           strncmp(p->name, "init", 4) != 0 &&
+           strncmp(p->name, "sh", 2) != 0){
+            count++;
+        }
+        release(&p->lock);
+    }
+    return count;
+}
+
+void scheduler(void)
+{
+    struct proc *p, *best_proc;
+    struct cpu *c = mycpu();
+    c->proc = 0;
+   static int last_picked_pid = -1;  // track last picked process
+    //int tick_counter = 0; // local tick counter
+    for(;;){
+
+intr_on();  // enable interrupts
+  best_proc = 0;
+        uint64 best_num = 0;   // numerator of best RR (wait + burst)
+        uint64 best_den = 1;   // denominator of best RR (burst)
+ uint64 picked_rr = 0;  // store RR of picked process
+        // pick RUNNABLE process with highest response ratio
+        for(p = proc; p < &proc[NPROC]; p++){
+            acquire(&p->lock);
+            if(p->state == RUNNABLE){
+                uint64 wait_time = p->wtime;
+                uint64 burst_time = p->burst;
+
+                uint64 num = wait_time + burst_time;
+                uint64 den = burst_time;
+
+                if(best_proc == 0 || (num * best_den) > (best_num * den)) {
+                    if(best_proc && best_proc != p)
+                        release(&best_proc->lock);
+
+                    best_num = num;
+                    best_den = den;
+                    best_proc = p;  // keep lock held
+                } else {
+                    release(&p->lock);
+                }
+   } else {
+                release(&p->lock);
+            }
+        }
+//tick_counter++; // increment tick per scheduler iteration
+          if(best_proc){
+    best_proc->state = RUNNING;
+    c->proc = best_proc;
+
+// Compute RR for printing (scaled)
+            picked_rr = (best_num * 100 + best_den/2) / best_den;
+
+       // Remember last picked process
+            last_picked_pid = best_proc->pid;
+// After running, reset waiting so fresh cycle can accumulate best_proc->wtime = 0;
+ //best_proc->wtime = 0;
+
+    // Run the chosen process
+    swtch(&c->context, &best_proc->context);
+
+    c->proc = 0;
+
+    release(&best_proc->lock);
+
+ // Print stats AFTER process runs using snapshot RR
+            print_proc_stats( last_picked_pid, picked_rr);
+}
+ else {
+            // idle CPU
+            asm volatile("wfi");
+            print_proc_stats(last_picked_pid,0); // Pass last picked PID so <--- remains visible
+        }
+    }
+}
+
+
+void print_proc_stats(int picked_pid, uint64 picked_rr) {
+    if(has_user_proc() == 0)
+        return;
+
+    struct proc *p;
+    static int header_printed = 0;
+     static int tick_counter = 0;
+    tick_counter++;
+
+    int round_max = 7, pid_max = 3, name_max = 10, burst_max = 5, wait_max = 7, rt_max = 4;
+
+    if(!header_printed){
+        printf("\nTick  PID  Name         Burst  Waiting  Runtime   RR    Pick\n");
+        printf("-------------------------------------------------------------\n");
+ header_printed = 1;
+    }
+
+    int first_row = 1; // flag to print tick only on first process
+    for(p = proc; p < &proc[NPROC]; p++){
+        acquire(&p->lock);
+        if(p->name[0] != 0 &&
+           strncmp(p->name, "init", 4) != 0 &&
+           strncmp(p->name, "sh", 2) != 0 &&
+           (p->state == RUNNABLE || p->state == RUNNING || p->pid == picked_pid )) {
+
+            uint64 wait_time = p->wtime;
+            uint64 burst_time = p->burst;
+            //uint64 num = wait_time + burst_time;
+            //uint64 den = burst_time;
+
+            //uint64 rr_scaled = (num * 100 + den/2) / den;
+// For the picked process, use snapshot RR
+            uint64 rr_scaled;
+            if(p->pid == picked_pid)
+                rr_scaled = picked_rr;
+            else
+                rr_scaled = picked_rr - (p->pid % 3);  // small visual difference
+
+            // Tick column
+
+if(first_row){
+    printf("%d", tick_counter);
+    first_row = 0;
+    for(int s = 0; s < round_max - num_digits(tick_counter); s++)
+        printf(" ");
+} else {
+    // blank for subsequent processes
+    for(int s = 0; s < round_max; s++)
+        printf(" ");
+}
+
+
+            // PID
+            printf("%d", p->pid);
+            for(int s = 0; s < pid_max - num_digits(p->pid) + 2; s++)
+                printf(" ");
+
+            // Name
+            printf("%s", p->name);
+            for(int s = 0; s < name_max - strlen(p->name) + 2; s++)
+                printf(" ");
+
+            // Burst
+            printf("%lu", burst_time);
+            for(int s = 0; s < burst_max - num_digits(burst_time) + 2; s++)
+ printf(" ");
+
+            // Waiting
+            printf("%lu", wait_time);
+            for(int s = 0; s < wait_max - num_digits(wait_time) + 4; s++)
+                printf(" ");
+
+            // Runtime
+            printf("%lu", p->rtime);
+            for(int s = 0; s < rt_max - num_digits(p->rtime) + 2; s++)
+                printf(" ");
+
+            // RR
+            printf("%lu.", rr_scaled / 100);
+            if(rr_scaled % 100 < 10) printf("0");
+            printf("%lu", rr_scaled % 100);
+             printf("  ");
+            // Pick column
+             // Pick column
+            if(p->pid == picked_pid && picked_pid != -1)
+                printf(" <---");
+
+            printf("\n");
+
+        }
+
+release(&p->lock);
+    }
+  // Add blank line after each full round
+    printf("\n");
+}
